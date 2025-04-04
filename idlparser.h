@@ -80,6 +80,10 @@ static const char *idl_skip(const char *p, const char *end, const char *skip) {
 	return p;
 }
 
+static int idl_is_subtype(const char *s) {
+	return !strncmp(s, "DL", 2) || !strncmp(s, "ID", 2);
+}
+
 static const char *idl_subtype(const char *s, const char *end,
 		char (*code)[3]) {
 	for (const char *p = s; p < end; ++p) {
@@ -89,9 +93,7 @@ static const char *idl_subtype(const char *s, const char *end,
 		}
 		const char *d = idl_skip(p, end, IDL_DIGITS);
 		// Check if there are 8 or more consecutive digits.
-		if (d - p < 8 || end - d < 3 ||
-				// Check if this is followed by "DL" or "ID".
-				(strncmp(d, "DL", 2) && strncmp(d, "ID", 2))) {
+		if (d - p < 8 || end - d < 3 || !idl_is_subtype(d)) {
 			continue;
 		}
 		strncpy(*code, d, 2);
@@ -99,9 +101,7 @@ static const char *idl_subtype(const char *s, const char *end,
 		while (end - d > 2) {
 			// Skip over everything that is not a "D" or "I".
 			for (; d < end && !strchr("DI", *d); ++d);
-			if (end - d > 2 &&
-					// Check if it is a "DL" or "ID".
-					(!strncmp(d, "DL", 2) || !strncmp(d, "ID", 2))) {
+			if (end - d > 2 && idl_is_subtype(d)) {
 				// Return pointer after second "DL|ID".
 				return d + 2;
 			}
