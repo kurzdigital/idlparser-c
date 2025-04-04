@@ -6,6 +6,9 @@ Single-file header library to parse an
 ## Barcode
 
 IDLs are usually encoded in a [PDF417][pdf417] barcode.
+
+![AAMVA sample](samples/05.png)
+
 Reading this barcode is not part of this library.
 
 ## How to use
