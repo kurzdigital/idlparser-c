@@ -122,7 +122,7 @@ static const char *idl_find_iin(const char *s, const char *end,
 	// Can't use strcspn() because s may not be NULL-terminated.
 	p = idl_skip(p, end, IDL_WHITE_SPACE);
 	if (p == ansi) {
-		return NULL; // There need to be some white space after ANSI.
+		return NULL; // There needs to be some white space after ANSI.
 	}
 	const char *iin = p;
 	// The Issuer Identification Number (IIN) is at most 6 digits long.
