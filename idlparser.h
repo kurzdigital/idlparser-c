@@ -75,55 +75,63 @@ static void idl_resolve_sex(char *value) {
 	*(++value) = 0;
 }
 
-static const char *idl_subtype(const char *s, unsigned int left,
+static const char *idl_skip(const char *p, const char *end, const char *skip) {
+	for (; p < end && strchr(skip, *p); ++p);
+	return p;
+}
+
+static const char *idl_subtype(const char *s, const char *end,
 		char (*code)[3]) {
-	for (const char *p = s; left > 0; --left, ++p) {
+	for (const char *p = s; p < end; ++p) {
 		// Find a digit.
 		if (!strchr(IDL_DIGITS, *p)) {
 			continue;
 		}
-		const char *d = p;
-		for (; left > 0 && strchr(IDL_DIGITS, *d); --left, ++d);
+		const char *d = idl_skip(p, end, IDL_DIGITS);
 		// Check if there are 8 or more consecutive digits.
-		if (d - p < 8 || left < 3 ||
+		if (d - p < 8 || end - d < 3 ||
 				// Check if this is followed by "DL" or "ID".
 				(strncmp(d, "DL", 2) && strncmp(d, "ID", 2))) {
 			continue;
 		}
 		strncpy(*code, d, 2);
 		d += 2;
-		while (left > 2) {
+		while (end - d > 2) {
 			// Skip over everything that is not a "D" or "I".
-			for (; left > 0 && !strchr("DI", *d); --left, ++d);
-			if (left > 2 &&
+			for (; d < end && !strchr("DI", *d); ++d);
+			if (end - d > 2 &&
 					// Check if it is a "DL" or "ID".
 					(!strncmp(d, "DL", 2) || !strncmp(d, "ID", 2))) {
 				// Return pointer after second "DL|ID".
 				return d + 2;
 			}
 		}
+		break;
 	}
 	return s;
 }
 
-static char *idl_find_iin(const char *s, unsigned int len,
+static const char *idl_find_iin(const char *s, const char *end,
 		unsigned int *size) {
-	char *ansi = (char *) memmem(s, len, "ANSI", 4);
-	if (ansi == NULL) {
+	const char *ansi = (char *) memmem(s, (end - s), "ANSI", 4);
+	if (!ansi) {
 		return NULL;
 	}
 	ansi += 4;
-	char *p = ansi;
-	int left = len - (p - s);
-	for (; left > 0 && strchr(IDL_WHITE_SPACE, *p); --left, ++p);
+	const char *p = ansi;
+	// Can't use strcspn() because s may not be NULL-terminated.
+	p = idl_skip(p, end, IDL_WHITE_SPACE);
 	if (p == ansi) {
 		return NULL; // There need to be some white space after ANSI.
 	}
-	char *iin = p;
-	// The IIN is at most 6 digits long.
-	for (int n = 6; n > 0 && left > 0 && strchr(IDL_DIGITS, *p);
-			--n, --left, ++p);
+	const char *iin = p;
+	// The Issuer Identification Number (IIN) is at most 6 digits long.
+	//for (int n = 6; n > 0 && p < end && strchr(IDL_DIGITS, *p); --n, ++p);
+	p = idl_skip(p, end, IDL_DIGITS);
 	*size = p - iin;
+	if (*size > 6) {
+		*size = 6;
+	}
 	return *size > 0 ? iin : NULL;
 }
 
@@ -159,11 +167,12 @@ int parse_idl(IDL *idl, const char *s, unsigned int len) {
 	if (!s || len < 1) {
 		return 0;
 	}
+	const char *end = s + len;
 
 	// Try to find the Issuer Identification Number (IIN).
 	{
 		unsigned int size = 0;
-		char *iin = idl_find_iin(s, len, &size);
+		const char *iin = idl_find_iin(s, end, &size);
 		if (iin) {
 			idl->iin = strndup(iin, size);
 		}
@@ -177,12 +186,10 @@ int parse_idl(IDL *idl, const char *s, unsigned int len) {
 
 	// Check for sub file pattern.
 	{
-		const char *p = s;
-		int left = len;
-		for (; left > 0 && strchr(IDL_WHITE_SPACE, *p); --left, ++p);
+		const char *p = idl_skip(s, end, IDL_WHITE_SPACE);
 		if (*p == '@') {
 			char code[] = {0,0,0};
-			s = idl_subtype(p, left, &code);
+			s = idl_subtype(p, end, &code);
 			if (*code) {
 				idl_add(idl, "DL", code);
 			}
@@ -192,9 +199,9 @@ int parse_idl(IDL *idl, const char *s, unsigned int len) {
 	// Split and collect key/value pairs.
 	{
 		const char *p = s;
-		int left = len;
-		for (; left > 0; --left, ++p) {
-			if (*p > 0x1f) { // Check for control characters.
+		for (; p <= end; ++p) {
+			// Wait until control character (LF).
+			if (p < end && *p > 0x1f) {
 				continue;
 			}
 			int vlen = (p - s) - 3;
