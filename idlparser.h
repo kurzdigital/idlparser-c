@@ -105,6 +105,7 @@ static const char *idl_subtype(const char *s, const char *end,
 				// Return pointer after second "DL|ID".
 				return d + 2;
 			}
+			++d;
 		}
 		break;
 	}
@@ -126,7 +127,6 @@ static const char *idl_find_iin(const char *s, const char *end,
 	}
 	const char *iin = p;
 	// The Issuer Identification Number (IIN) is at most 6 digits long.
-	//for (int n = 6; n > 0 && p < end && strchr(IDL_DIGITS, *p); --n, ++p);
 	p = idl_skip(p, end, IDL_DIGITS);
 	*size = p - iin;
 	if (*size > 6) {
