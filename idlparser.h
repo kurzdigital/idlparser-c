@@ -198,29 +198,42 @@ int parse_idl(IDL *idl, const char *s, unsigned int len) {
 
 	// Split and collect key/value pairs.
 	{
+		int skip_subtype = 0;
 		const char *p = s;
 		for (; p <= end; ++p) {
-			// Wait until control character (LF).
+			// Wait until control character (LF or CR).
 			if (p < end && *p > 0x1f) {
 				continue;
 			}
-			int vlen = (p - s) - 3;
+			// Per spec, CR (0x0d) is the subfile boundary marker. The
+			// segment immediately following a CR may begin with a 2-char
+			// subfile type identifier (e.g. "ZV", "ZI") prepended to the
+			// first field. Detect this by checking that the marker matches
+			// the key prefix (jurisdiction fields always share their 2-char
+			// subfile prefix).
+			const char *seg = s;
+			if (skip_subtype && (p - s) >= 4 &&
+					s[0] == s[2] && s[1] == s[3]) {
+				seg = s + 2;
+			}
+			int vlen = (p - seg) - 3;
 			if (vlen > 0 &&
 					// Check label name.
-					strchr("DZ", *s) &&
-					strchr(IDL_LETTERS, *(s + 1)) &&
-					strchr(IDL_LETTERS, *(s + 2))) {
+					strchr("DZ", *seg) &&
+					strchr(IDL_LETTERS, *(seg + 1)) &&
+					strchr(IDL_LETTERS, *(seg + 2))) {
 				char key[4];
 				memset(&key, 0, sizeof(key));
-				strncpy(key, s, 3);
+				strncpy(key, seg, 3);
 				char value[vlen + 1];
 				memset(&value, 0, sizeof(value));
-				strncpy(value, s + 3, vlen);
+				strncpy(value, seg + 3, vlen);
 				if (!strncmp(key, "DBC", 3)) {
 					idl_resolve_sex((char *) &value);
 				}
 				idl_add(idl, key, value);
 			}
+			skip_subtype = p < end && *p == 0x0d;
 			s = p + 1;
 		}
 	}
